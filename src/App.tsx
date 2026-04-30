@@ -3,6 +3,7 @@ import './App.css'
 import {
   addChildNode,
   addSiblingNode,
+  createBlankRoot,
   cloneRoot,
   createExampleRoot,
   createId,
@@ -18,12 +19,12 @@ import { OutlinePanel } from './OutlinePanel'
 import { deleteMindMap, listMindMaps, saveMindMap } from './storage'
 import type { LayoutType, MindMapDocument, MindNode } from './types'
 
-function createDocument(title = '未命名导图'): MindMapDocument {
+function createDocument(title = '未命名导图', root = createBlankRoot(title)): MindMapDocument {
   const now = Date.now()
   return {
     id: createId(),
     title,
-    root: createExampleRoot(),
+    root,
     layout: 'mindMap',
     createdAt: now,
     updatedAt: now,
@@ -63,7 +64,10 @@ function App() {
 
     async function load() {
       const stored = await listMindMaps()
-      const docs = stored.length > 0 ? stored : [createDocument('示例导图')]
+      const docs =
+        stored.length > 0
+          ? stored
+          : [createDocument('示例导图', createExampleRoot())]
 
       if (stored.length === 0) {
         await saveMindMap(docs[0])
@@ -93,11 +97,13 @@ function App() {
   const openDocument = (doc: MindMapDocument) => {
     if (doc.id === activeId) return
     if (!confirmDiscard()) return
+    const nextRoot = cloneRoot(doc.root)
     setActiveId(doc.id)
-    setCurrentRoot(cloneRoot(doc.root))
+    setCurrentRoot(nextRoot)
     setCurrentLayout(doc.layout)
     setSelectedUid(null)
     setDirty(false)
+    canvasRef.current?.syncData(nextRoot)
   }
 
   const createNewDocument = async () => {
@@ -107,12 +113,14 @@ function App() {
 
     const doc = createDocument(title)
     await saveMindMap(doc)
+    const nextRoot = cloneRoot(doc.root)
     setDocuments((list) => [doc, ...list])
     setActiveId(doc.id)
-    setCurrentRoot(cloneRoot(doc.root))
+    setCurrentRoot(nextRoot)
     setCurrentLayout(doc.layout)
     setSelectedUid(null)
     setDirty(false)
+    canvasRef.current?.syncData(nextRoot)
   }
 
   const renameDocument = async (doc: MindMapDocument) => {
@@ -140,11 +148,13 @@ function App() {
         await saveMindMap(nextDoc)
         setDocuments([nextDoc])
       }
+      const nextRoot = cloneRoot(nextDoc.root)
       setActiveId(nextDoc.id)
-      setCurrentRoot(cloneRoot(nextDoc.root))
+      setCurrentRoot(nextRoot)
       setCurrentLayout(nextDoc.layout)
       setSelectedUid(null)
       setDirty(false)
+      canvasRef.current?.syncData(nextRoot)
     }
   }
 
@@ -317,6 +327,7 @@ function App() {
         <div className="editor-grid">
           <div className="canvas-panel">
             <MindMapCanvas
+              key={activeDocument.id}
               ref={canvasRef}
               docId={activeDocument.id}
               root={currentRoot}

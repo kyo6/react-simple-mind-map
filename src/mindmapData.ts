@@ -54,6 +54,17 @@ export function createExampleRoot(): MindNode {
   }
 }
 
+export function createBlankRoot(title = '中心主题'): MindNode {
+  return {
+    data: {
+      text: title,
+      uid: createId(),
+      expand: true,
+    },
+    children: [],
+  }
+}
+
 export function cloneRoot(root: MindNode): MindNode {
   return JSON.parse(JSON.stringify(root)) as MindNode
 }

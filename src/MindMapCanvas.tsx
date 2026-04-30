@@ -89,6 +89,15 @@ export const MindMapCanvas = forwardRef<
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mindMapRef = useRef<MindMapInstance | null>(null)
   const suppressChangeRef = useRef(false)
+  const appliedDocIdRef = useRef<string | null>(null)
+
+  const runWithoutChangeEvent = (operation: () => void) => {
+    suppressChangeRef.current = true
+    operation()
+    window.setTimeout(() => {
+      suppressChangeRef.current = false
+    }, 0)
+  }
 
   useImperativeHandle(ref, () => ({
     getData() {
@@ -96,15 +105,9 @@ export const MindMapCanvas = forwardRef<
     },
     syncData(nextRoot) {
       if (!mindMapRef.current) return
-      suppressChangeRef.current = true
-      if (mindMapRef.current.updateData) {
-        mindMapRef.current.updateData(nextRoot)
-      } else {
-        mindMapRef.current.setData(nextRoot)
-      }
-      window.setTimeout(() => {
-        suppressChangeRef.current = false
-      }, 0)
+      runWithoutChangeEvent(() => {
+        mindMapRef.current?.setData(nextRoot)
+      })
     },
     selectNode(uid) {
       const mindMap = mindMapRef.current
@@ -157,6 +160,7 @@ export const MindMapCanvas = forwardRef<
         })
 
         mindMapRef.current = mindMap
+        appliedDocIdRef.current = docId
 
         const handleDataChange = (nextRoot: unknown) => {
           if (suppressChangeRef.current) return
@@ -181,6 +185,7 @@ export const MindMapCanvas = forwardRef<
           mindMap.off('node_active', handleNodeActive)
           mindMap.destroy()
           mindMapRef.current = null
+          appliedDocIdRef.current = null
         })
       })
       .catch((error) => {
@@ -199,6 +204,18 @@ export const MindMapCanvas = forwardRef<
   useEffect(() => {
     mindMapRef.current?.setLayout(layout)
   }, [layout])
+
+  useEffect(() => {
+    const mindMap = mindMapRef.current
+    if (!mindMap || appliedDocIdRef.current === docId) return
+
+    runWithoutChangeEvent(() => {
+      mindMap.setData(root)
+      mindMap.setLayout(layout)
+      mindMap.view.fit()
+      appliedDocIdRef.current = docId
+    })
+  }, [docId, layout, root])
 
   return <div ref={containerRef} className="mindmap-canvas" />
 })
