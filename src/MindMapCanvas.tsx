@@ -154,6 +154,12 @@ export const MindMapCanvas = forwardRef<
           layout,
           fit: true,
           theme: 'default',
+          maxTag: 2,
+          tagsColorMap: {
+            需求: '#3b82f6',
+            模块: '#10b981',
+            测试点: '#f97316',
+          },
           defaultInsertSecondLevelNodeText: '新节点',
           defaultInsertBelowSecondLevelNodeText: '新节点',
           createNewNodeBehavior: 'activeOnly',

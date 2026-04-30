@@ -4,10 +4,27 @@ export type LayoutType =
   | 'organizationStructure'
   | 'catalogOrganization'
 
+export interface MindNodeTagStyle {
+  fill?: string
+  fontSize?: number
+  height?: number
+  paddingX?: number
+  radius?: number
+  width?: number
+}
+
+export type MindNodeTag =
+  | string
+  | {
+      text: string
+      style?: MindNodeTagStyle
+    }
+
 export interface MindNodeData {
   text: string
   uid?: string
   expand?: boolean
+  tag?: MindNodeTag[]
   [key: string]: unknown
 }
 

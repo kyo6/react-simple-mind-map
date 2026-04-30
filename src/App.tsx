@@ -8,11 +8,15 @@ import {
   createExampleRoot,
   createId,
   ensureNodeIds,
+  getNodeTagLabel,
   isValidMindMapRoot,
   layoutOptions,
   removeNode,
+  tagOptions,
   toggleNodeExpand,
+  updateNodeTag,
   updateNodeText,
+  type TagLabel,
 } from './mindmapData'
 import { MindMapCanvas, type MindMapCanvasHandle } from './MindMapCanvas'
 import { OutlinePanel } from './OutlinePanel'
@@ -223,6 +227,10 @@ function App() {
     return <main className="loading">正在加载导图...</main>
   }
 
+  const selectedTag = selectedUid
+    ? getNodeTagLabel(currentRoot, selectedUid)
+    : ''
+
   return (
     <main className="app-shell">
       <aside className="library-panel">
@@ -276,6 +284,26 @@ function App() {
               {layoutOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={selectedTag}
+              disabled={!selectedUid}
+              onChange={(event) =>
+                applyRootChange(
+                  updateNodeTag(
+                    currentRoot,
+                    selectedUid!,
+                    event.target.value as TagLabel | '',
+                  ),
+                )
+              }
+            >
+              <option value="">无标签</option>
+              {tagOptions.map((label) => (
+                <option key={label} value={label}>
+                  {label}
                 </option>
               ))}
             </select>

@@ -1,4 +1,4 @@
-import type { LayoutType, MindNode } from './types'
+import type { LayoutType, MindNode, MindNodeTag } from './types'
 
 export const layoutOptions: Array<{ label: string; value: LayoutType }> = [
   { label: '思维导图', value: 'mindMap' },
@@ -7,16 +7,40 @@ export const layoutOptions: Array<{ label: string; value: LayoutType }> = [
   { label: '目录组织图', value: 'catalogOrganization' },
 ]
 
+export const tagOptions = ['需求', '模块', '测试点'] as const
+
+export type TagLabel = (typeof tagOptions)[number]
+
+const tagFillByLabel: Record<TagLabel, string> = {
+  需求: '#3b82f6',
+  模块: '#10b981',
+  测试点: '#f97316',
+}
+
+function createTag(label: TagLabel): MindNodeTag {
+  return {
+    text: label,
+    style: {
+      fill: tagFillByLabel[label],
+      fontSize: 12,
+      height: 20,
+      paddingX: 6,
+      radius: 3,
+    },
+  }
+}
+
 export function createId(): string {
   return crypto.randomUUID()
 }
 
-export function createNode(text = '新节点'): MindNode {
+export function createNode(text = '新节点', tag?: TagLabel): MindNode {
   return {
     data: {
       text,
       uid: createId(),
       expand: true,
+      ...(tag ? { tag: [createTag(tag)] } : {}),
     },
     children: [],
   }
@@ -25,21 +49,69 @@ export function createNode(text = '新节点'): MindNode {
 export function createExampleRoot(): MindNode {
   return {
     data: {
-      text: 'Simple Mind Map Demo',
+      text: '智能生成需求内容',
       uid: createId(),
       expand: true,
     },
     children: [
       {
-        data: { text: 'Mindmap 管理', uid: createId(), expand: true },
+        data: {
+          text: '子需求1:需求内容智能生成',
+          uid: createId(),
+          expand: true,
+          tag: [createTag('需求')],
+        },
         children: [
-          createNode('IndexedDB 保存'),
-          createNode('新建 / 重命名 / 删除'),
-          createNode('手动保存'),
+          {
+            data: {
+              text: '需求内容生成',
+              uid: createId(),
+              expand: true,
+              tag: [createTag('模块')],
+            },
+            children: [
+              createNode(
+                '验证TAPD能否通过人工智能技术自动生成详细且准确的需求描述和文档',
+                '测试点',
+              ),
+              createNode(
+                '验证TAPD能否借助腾讯混元大模型自动生成详细且准确的需求描述和文档',
+                '测试点',
+              ),
+              createNode(
+                '验证需求内容生成功能是否能有效减少人工编写需求文档的工作量',
+                '测试点',
+              ),
+              createNode(
+                '验证自动生成的需求文档是否具有较高的一致性',
+                '测试点',
+              ),
+              createNode(
+                '验证自动生成的需求文档是否具有较高的质量',
+                '测试点',
+              ),
+              createNode(
+                '验证需求内容生成功能是否能提高需求文档的编写效率',
+                '测试点',
+              ),
+              createNode(
+                '验证自动生成的需求文档是否能满足项目开发的基础需求',
+                '测试点',
+              ),
+            ],
+          },
+          createNode('需求文档编写', '模块'),
+          createNode('编写效率提升', '模块'),
+          createNode('文档质量保证', '模块'),
         ],
       },
       {
-        data: { text: '节点编辑', uid: createId(), expand: true },
+        data: {
+          text: '节点编辑',
+          uid: createId(),
+          expand: true,
+          tag: [createTag('模块')],
+        },
         children: [
           createNode('新增子节点'),
           createNode('新增同级节点'),
@@ -155,6 +227,43 @@ export function removeNode(root: MindNode, uid: string): MindNode {
 
   walk(next)
   return next
+}
+
+export function getNodeTagLabel(root: MindNode, uid: string): TagLabel | '' {
+  const node = findNode(root, uid)
+  const firstTag = node?.data.tag?.[0]
+  const label = typeof firstTag === 'string' ? firstTag : firstTag?.text
+  return tagOptions.includes(label as TagLabel) ? (label as TagLabel) : ''
+}
+
+export function updateNodeTag(
+  root: MindNode,
+  uid: string,
+  label: TagLabel | '',
+): MindNode {
+  return updateTree(root, uid, (node) => {
+    const dataWithoutTag = { ...node.data }
+    delete dataWithoutTag.tag
+    return {
+      ...node,
+      data: {
+        ...dataWithoutTag,
+        ...(label ? { tag: [createTag(label)] } : {}),
+      },
+    }
+  })
+}
+
+function findNode(root: MindNode, uid: string): MindNode | null {
+  if (root.data.uid === uid) return root
+  const children = root.children || []
+
+  for (const child of children) {
+    const match = findNode(child, uid)
+    if (match) return match
+  }
+
+  return null
 }
 
 function updateTree(
