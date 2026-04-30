@@ -154,6 +154,17 @@ export const MindMapCanvas = forwardRef<
           layout,
           fit: true,
           theme: 'default',
+          themeConfig: {
+            root: {
+              tagPlacement: 'left',
+            },
+            second: {
+              tagPlacement: 'left',
+            },
+            node: {
+              tagPlacement: 'left',
+            },
+          },
           maxTag: 2,
           tagsColorMap: {
             需求: '#3b82f6',
@@ -223,5 +234,5 @@ export const MindMapCanvas = forwardRef<
     })
   }, [docId, layout, root])
 
-  return <div ref={containerRef} className="mindmap-canvas" />
+  return <div ref={containerRef} className="mindmap-canvas" id="mindMapContainer"/>
 })

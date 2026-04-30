@@ -181,6 +181,10 @@ select:hover {
   padding: 14px;
 }
 
+#mindMapContainer * {
+  margin: 0;
+  padding: 0;
+}
 .mindmap-canvas {
   width: 100%;
   height: calc(100vh - 88px);
