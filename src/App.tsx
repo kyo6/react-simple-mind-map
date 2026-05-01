@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { message } from 'antd'
 import './App.css'
 import {
   addChildNode,
+  addAIChildNodes,
   addSiblingNode,
   createBlankRoot,
   cloneRoot,
@@ -20,8 +22,13 @@ import {
 } from './mindmapData'
 import { MindMapCanvas, type MindMapCanvasHandle } from './MindMapCanvas'
 import { OutlinePanel } from './OutlinePanel'
-import { deleteMindMap, listMindMaps, saveMindMap } from './storage'
-import type { LayoutType, MindMapDocument, MindNode } from './types'
+import { deleteMindMap, listMindMaps, saveMindMap, loadAISettings } from './storage'
+import { useAIGenerate } from './useAIGenerate'
+import { AISettingsDrawer } from './AISettingsDrawer'
+import { ThinkingModelDrawer } from './ThinkingModelDrawer'
+import type { LayoutType, MindMapDocument, MindNode, AISettings, AIGenerateNode } from './types'
+import { DEFAULT_AI_SETTINGS } from './types'
+import { extractIdeas } from './libai'
 
 function createDocument(title = '未命名导图', root = createBlankRoot(title)): MindMapDocument {
   const now = Date.now()
@@ -57,6 +64,9 @@ function App() {
   const [selectedUid, setSelectedUid] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [aiSettings, setAISettings] = useState<AISettings>(DEFAULT_AI_SETTINGS)
+  const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false)
+  const [thinkingModelDrawerOpen, setThinkingModelDrawerOpen] = useState(false)
 
   const activeDocument = useMemo(
     () => documents.find((doc) => doc.id === activeId) || null,
@@ -67,7 +77,10 @@ function App() {
     let mounted = true
 
     async function load() {
-      const stored = await listMindMaps()
+      const [stored, savedSettings] = await Promise.all([
+        listMindMaps(),
+        loadAISettings(),
+      ])
       const docs =
         stored.length > 0
           ? stored
@@ -82,6 +95,9 @@ function App() {
       setActiveId(docs[0].id)
       setCurrentRoot(cloneRoot(docs[0].root))
       setCurrentLayout(docs[0].layout)
+      if (savedSettings) {
+        setAISettings(savedSettings)
+      }
       setLoading(false)
     }
 
@@ -182,12 +198,12 @@ function App() {
     setDirty(false)
   }
 
-  const applyRootChange = (root: MindNode) => {
+  const applyRootChange = useCallback((root: MindNode) => {
     const nextRoot = ensureNodeIds(root)
     setCurrentRoot(nextRoot)
     canvasRef.current?.syncData(nextRoot)
     setDirty(true)
-  }
+  }, [])
 
   const handleCanvasChange = (root: MindNode) => {
     setCurrentRoot(ensureNodeIds(root))
@@ -219,6 +235,48 @@ function App() {
 
     applyRootChange(root)
     importInputRef.current!.value = ''
+  }
+
+  const handleAISettingsChange = (settings: AISettings) => {
+    setAISettings(settings)
+  }
+
+  const handleLoadTemplate = async (url: string) => {
+    try {
+      const res = await fetch(url)
+      const text = await res.text()
+      const parsed = JSON.parse(text)
+      const ideas: AIGenerateNode[] = Array.isArray(parsed) ? parsed : extractIdeas(parsed)
+      if (!Array.isArray(ideas) || ideas.length === 0) {
+        message.warning('模板数据为空')
+        return
+      }
+      if (!selectedUid) {
+        message.warning('请先选中一个节点')
+        return
+      }
+      const newRoot = addAIChildNodes(currentRoot!, selectedUid, ideas)
+      applyRootChange(newRoot)
+      message.success('模板加载成功')
+    } catch {
+      message.error('模板加载失败')
+    }
+  }
+
+  const { isGenerating, generate } = useAIGenerate({
+    settings: aiSettings,
+    currentRoot: currentRoot!,
+    selectedUid,
+    onRootChange: applyRootChange,
+  })
+
+  const handleAIGenerate = async () => {
+    try {
+      await generate()
+      message.success('AI 生成完成')
+    } catch (err) {
+      message.error(String(err))
+    }
   }
 
   const selected = Boolean(selectedUid)
@@ -316,6 +374,28 @@ function App() {
             <button type="button" onClick={() => canvasRef.current?.removeSelected()} disabled={!selected}>
               删除
             </button>
+            <button
+              type="button"
+              className="ai-generate-button"
+              disabled={!selected || isGenerating}
+              onClick={handleAIGenerate}
+            >
+              {isGenerating ? '生成中...' : 'AI 生成'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setThinkingModelDrawerOpen(true)}
+              title="思维模型"
+            >
+              思维模型
+            </button>
+            <button
+              type="button"
+              onClick={() => setSettingsDrawerOpen(true)}
+              title="AI 设置"
+            >
+              AI 设置
+            </button>
             <button type="button" onClick={() => canvasRef.current?.zoomOut()}>
               缩小
             </button>
@@ -380,6 +460,21 @@ function App() {
           />
         </div>
       </section>
+
+      <AISettingsDrawer
+        open={settingsDrawerOpen}
+        settings={aiSettings}
+        onSettingsChange={handleAISettingsChange}
+        onClose={() => setSettingsDrawerOpen(false)}
+      />
+
+      <ThinkingModelDrawer
+        open={thinkingModelDrawerOpen}
+        settings={aiSettings}
+        onSettingsChange={handleAISettingsChange}
+        onClose={() => setThinkingModelDrawerOpen(false)}
+        onLoadTemplate={handleLoadTemplate}
+      />
     </main>
   )
 }

@@ -1,4 +1,4 @@
-import type { LayoutType, MindNode, MindNodeTag } from './types'
+import type { LayoutType, MindNode, MindNodeTag, AIGenerateNode } from './types'
 
 export const layoutOptions: Array<{ label: string; value: LayoutType }> = [
   { label: '思维导图', value: 'mindMap' },
@@ -264,6 +264,43 @@ function findNode(root: MindNode, uid: string): MindNode | null {
   }
 
   return null
+}
+
+export function getNodeText(root: MindNode, uid: string): string {
+  const node = findNode(root, uid)
+  return node?.data?.text || ''
+}
+
+export function getNodeSystemPrompt(root: MindNode, uid: string): string {
+  const node = findNode(root, uid)
+  return node?.data?.nextSystemPrompt || ''
+}
+
+function aiNodeToMindNode(aiNode: AIGenerateNode): MindNode {
+  return {
+    data: {
+      text: aiNode.data.text || '未命名节点',
+      uid: createId(),
+      expand: true,
+      note: aiNode.data.note || '',
+      nextSystemPrompt: aiNode.data.nextSystemPrompt || '',
+      color: aiNode.data.color || '',
+    },
+    children: (aiNode.children || []).map(aiNodeToMindNode),
+  }
+}
+
+export function addAIChildNodes(
+  root: MindNode,
+  uid: string,
+  aiNodes: AIGenerateNode[],
+): MindNode {
+  const mindNodes = aiNodes.map(aiNodeToMindNode)
+  return updateTree(root, uid, (node) => ({
+    ...node,
+    data: { ...node.data, expand: true },
+    children: [...(node.children || []), ...mindNodes],
+  }))
 }
 
 function updateTree(

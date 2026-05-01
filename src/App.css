@@ -304,6 +304,22 @@ select:hover {
   color: #b42318;
 }
 
+.ai-generate-button {
+  border-color: #7c3aed;
+  background: #7c3aed;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.ai-generate-button:hover:not(:disabled) {
+  border-color: #6d28d9;
+  background: #6d28d9;
+}
+
+.ai-generate-button:disabled {
+  opacity: 0.45;
+}
+
 .loading {
   min-height: 100vh;
   display: grid;
