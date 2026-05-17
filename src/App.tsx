@@ -222,7 +222,6 @@ function App() {
   }
 
   const selected = Boolean(selectedUid)
-  console.log(loading, currentRoot, activeDocument)
   if (loading || !currentRoot || !activeDocument) {
     return <main className="loading">正在加载导图...</main>
   }
