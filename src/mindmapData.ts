@@ -1,4 +1,4 @@
-import type { LayoutType, MindNode, MindNodeTag, AIGenerateNode } from './types'
+import type { LayoutType, MindNode, MindNodeTag, AIGenerateNode, MindMapDocument } from './types'
 
 export const layoutOptions: Array<{ label: string; value: LayoutType }> = [
   { label: '思维导图', value: 'mindMap' },
@@ -134,6 +134,21 @@ export function createBlankRoot(title = '中心主题'): MindNode {
       expand: true,
     },
     children: [],
+  }
+}
+
+export function createDocument(
+  title = '未命名导图',
+  root = createBlankRoot(title),
+): MindMapDocument {
+  const now = Date.now()
+  return {
+    id: createId(),
+    title,
+    root,
+    layout: 'mindMap',
+    createdAt: now,
+    updatedAt: now,
   }
 }
 

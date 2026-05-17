@@ -5,10 +5,8 @@ import {
   addChildNode,
   addAIChildNodes,
   addSiblingNode,
-  createBlankRoot,
   cloneRoot,
-  createExampleRoot,
-  createId,
+  createBlankRoot,
   ensureNodeIds,
   getNodeTagLabel,
   isValidMindMapRoot,
@@ -22,25 +20,14 @@ import {
 } from './mindmapData'
 import { MindMapCanvas, type MindMapCanvasHandle } from './MindMapCanvas'
 import { OutlinePanel } from './OutlinePanel'
-import { deleteMindMap, listMindMaps, saveMindMap, loadAISettings } from './storage'
+import { saveMindMap, loadAISettings } from './storage'
 import { useAIGenerate } from './useAIGenerate'
+import { useDocumentLibrary } from './hooks/useDocumentLibrary'
 import { AISettingsDrawer } from './AISettingsDrawer'
 import { ThinkingModelDrawer } from './ThinkingModelDrawer'
 import type { LayoutType, MindMapDocument, MindNode, AISettings, AIGenerateNode } from './types'
 import { DEFAULT_AI_SETTINGS } from './types'
 import { extractIdeas } from './libai'
-
-function createDocument(title = '未命名导图', root = createBlankRoot(title)): MindMapDocument {
-  const now = Date.now()
-  return {
-    id: createId(),
-    title,
-    root,
-    layout: 'mindMap',
-    createdAt: now,
-    updatedAt: now,
-  }
-}
 
 function downloadJson(filename: string, data: unknown) {
   const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -57,16 +44,40 @@ function downloadJson(filename: string, data: unknown) {
 function App() {
   const canvasRef = useRef<MindMapCanvasHandle | null>(null)
   const importInputRef = useRef<HTMLInputElement | null>(null)
-  const [documents, setDocuments] = useState<MindMapDocument[]>([])
-  const [activeId, setActiveId] = useState<string | null>(null)
   const [currentRoot, setCurrentRoot] = useState<MindNode | null>(null)
   const [currentLayout, setCurrentLayout] = useState<LayoutType>('mindMap')
   const [selectedUid, setSelectedUid] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [aiSettings, setAISettings] = useState<AISettings>(DEFAULT_AI_SETTINGS)
   const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false)
   const [thinkingModelDrawerOpen, setThinkingModelDrawerOpen] = useState(false)
+
+  const onLoad = useCallback((firstDoc: MindMapDocument) => {
+    setCurrentRoot(cloneRoot(firstDoc.root))
+    setCurrentLayout(firstDoc.layout)
+  }, [])
+
+  const onActiveDocumentChange = useCallback((doc: MindMapDocument | null) => {
+    if (!doc) return
+    setCurrentRoot(cloneRoot(doc.root))
+    setCurrentLayout(doc.layout)
+    setSelectedUid(null)
+    setDirty(false)
+  }, [])
+
+  const {
+    documents,
+    activeId,
+    loading,
+    setActiveId,
+    createDocument,
+    renameDocument,
+    deleteDocument,
+    updateDocument,
+  } = useDocumentLibrary({
+    onLoad,
+    onActiveDocumentChange,
+  })
 
   const activeDocument = useMemo(
     () => documents.find((doc) => doc.id === activeId) || null,
@@ -74,41 +85,11 @@ function App() {
   )
 
   useEffect(() => {
-    let mounted = true
-
-    async function load() {
-      const [stored, savedSettings] = await Promise.all([
-        listMindMaps(),
-        loadAISettings(),
-      ])
-      const docs =
-        stored.length > 0
-          ? stored
-          : [createDocument('示例导图', createExampleRoot())]
-
-      if (stored.length === 0) {
-        await saveMindMap(docs[0])
-      }
-
-      if (!mounted) return
-      setDocuments(docs)
-      setActiveId(docs[0].id)
-      setCurrentRoot(cloneRoot(docs[0].root))
-      setCurrentLayout(docs[0].layout)
+    loadAISettings().then((savedSettings) => {
       if (savedSettings) {
         setAISettings(savedSettings)
       }
-      setLoading(false)
-    }
-
-    load().catch((error) => {
-      console.error(error)
-      setLoading(false)
-    })
-
-    return () => {
-      mounted = false
-    }
+    }).catch(console.error)
   }, [])
 
   const confirmDiscard = () =>
@@ -117,91 +98,52 @@ function App() {
   const openDocument = (doc: MindMapDocument) => {
     if (doc.id === activeId) return
     if (!confirmDiscard()) return
-    const nextRoot = cloneRoot(doc.root)
     setActiveId(doc.id)
-    setCurrentRoot(nextRoot)
+    setCurrentRoot(cloneRoot(doc.root))
     setCurrentLayout(doc.layout)
     setSelectedUid(null)
     setDirty(false)
-    canvasRef.current?.syncData(nextRoot)
   }
 
-  const createNewDocument = async () => {
+  const handleCreateDocument = async () => {
     if (!confirmDiscard()) return
     const title = window.prompt('请输入导图名称', '新导图')?.trim()
     if (!title) return
-
-    const doc = createDocument(title)
-    await saveMindMap(doc)
-    const nextRoot = cloneRoot(doc.root)
-    setDocuments((list) => [doc, ...list])
-    setActiveId(doc.id)
-    setCurrentRoot(nextRoot)
-    setCurrentLayout(doc.layout)
+    await createDocument(title)
+    setCurrentRoot(createBlankRoot(title))
+    setCurrentLayout('mindMap')
     setSelectedUid(null)
     setDirty(false)
-    canvasRef.current?.syncData(nextRoot)
   }
 
-  const renameDocument = async (doc: MindMapDocument) => {
+  const handleRenameDocument = async (doc: MindMapDocument) => {
     const title = window.prompt('请输入新的导图名称', doc.title)?.trim()
     if (!title || title === doc.title) return
-
-    const updated = { ...doc, title, updatedAt: Date.now() }
-    await saveMindMap(updated)
-    setDocuments((list) =>
-      list.map((item) => (item.id === updated.id ? updated : item)),
-    )
+    await renameDocument(doc.id, title)
   }
 
-  const removeDocument = async (doc: MindMapDocument) => {
+  const handleDeleteDocument = async (doc: MindMapDocument) => {
     if (doc.id === activeId && !confirmDiscard()) return
     if (!window.confirm(`确认删除「${doc.title}」吗？`)) return
-
-    await deleteMindMap(doc.id)
-    const nextList = documents.filter((item) => item.id !== doc.id)
-    setDocuments(nextList)
-
-    if (doc.id === activeId) {
-      const nextDoc = nextList[0] || createDocument('示例导图')
-      if (nextList.length === 0) {
-        await saveMindMap(nextDoc)
-        setDocuments([nextDoc])
-      }
-      const nextRoot = cloneRoot(nextDoc.root)
-      setActiveId(nextDoc.id)
-      setCurrentRoot(nextRoot)
-      setCurrentLayout(nextDoc.layout)
-      setSelectedUid(null)
-      setDirty(false)
-      canvasRef.current?.syncData(nextRoot)
-    }
+    await deleteDocument(doc.id)
   }
 
   const saveCurrentDocument = async () => {
     if (!activeDocument || !currentRoot) return
-    const root = canvasRef.current?.getData() || currentRoot
     const updated: MindMapDocument = {
       ...activeDocument,
-      root: ensureNodeIds(root),
+      root: ensureNodeIds(currentRoot),
       layout: currentLayout,
       updatedAt: Date.now(),
     }
 
     await saveMindMap(updated)
-    setDocuments((list) =>
-      [updated, ...list.filter((doc) => doc.id !== updated.id)].sort(
-        (a, b) => b.updatedAt - a.updatedAt,
-      ),
-    )
-    setCurrentRoot(cloneRoot(updated.root))
+    updateDocument(updated)
     setDirty(false)
   }
 
   const applyRootChange = useCallback((root: MindNode) => {
-    const nextRoot = ensureNodeIds(root)
-    setCurrentRoot(nextRoot)
-    canvasRef.current?.syncData(nextRoot)
+    setCurrentRoot(ensureNodeIds(root))
     setDirty(true)
   }, [])
 
@@ -222,9 +164,9 @@ function App() {
     const root = isValidMindMapRoot(parsed)
       ? parsed
       : typeof parsed === 'object' &&
-          parsed !== null &&
-          'root' in parsed &&
-          isValidMindMapRoot((parsed as { root: unknown }).root)
+        parsed !== null &&
+        'root' in parsed &&
+        isValidMindMapRoot((parsed as { root: unknown }).root)
         ? (parsed as { root: MindNode }).root
         : null
 
@@ -280,7 +222,7 @@ function App() {
   }
 
   const selected = Boolean(selectedUid)
-
+  console.log(loading, currentRoot, activeDocument)
   if (loading || !currentRoot || !activeDocument) {
     return <main className="loading">正在加载导图...</main>
   }
@@ -297,7 +239,7 @@ function App() {
             <span className="eyebrow">IndexedDB Demo</span>
             <h1>Mindmaps</h1>
           </div>
-          <button type="button" className="primary-button" onClick={createNewDocument}>
+          <button type="button" className="primary-button" onClick={handleCreateDocument}>
             新建
           </button>
         </div>
@@ -313,10 +255,10 @@ function App() {
                 <span>{new Date(doc.updatedAt).toLocaleString()}</span>
               </button>
               <div className="document-actions">
-                <button type="button" onClick={() => renameDocument(doc)}>
+                <button type="button" onClick={() => handleRenameDocument(doc)}>
                   改名
                 </button>
-                <button type="button" onClick={() => removeDocument(doc)}>
+                <button type="button" onClick={() => handleDeleteDocument(doc)}>
                   删除
                 </button>
               </div>

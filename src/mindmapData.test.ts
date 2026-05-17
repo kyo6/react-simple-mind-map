@@ -9,7 +9,7 @@ import {
   removeNode,
   getNodeText,
 } from './mindmapData'
-import type { MindNode } from './types'
+
 
 describe('mindmapData', () => {
     // 默认文本、自定义文本、UID生成、展开状态
